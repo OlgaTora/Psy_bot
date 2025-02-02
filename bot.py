@@ -11,18 +11,8 @@ from aiogram import F
 from aiogram.dispatcher.event.bases import CancelHandler
 from aiogram.filters import Command, CommandObject
 from aiogram.types import Message, TelegramObject
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from config import config
 
-
-# for tg test /imei e4oEaZY1Kom5OXzybETkMlwjOCy3i8GSCGTHzWrhd4dc563b/356735111052198
-
-class Settings(BaseSettings):
-    telegram_bot_token: str
-    external_api_url: str
-    model_config = SettingsConfigDict(env_file='.env', env_file_encoding='utf-8')
-
-
-config = Settings()
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -51,12 +41,15 @@ class AccessMiddleware(BaseMiddleware, ABC):
 bot = Bot(token=config.telegram_bot_token)
 dp = Dispatcher()
 
-allowed_users = ['alissali', 'Rider87']
+allowed_users = ['alissali']
 dp.update.outer_middleware(AccessMiddleware(allowed_users))
+
+results = asyncio.Queue()
 
 
 @dp.message(F.text, Command('imei'))
 async def extract_data(message: Message, command: CommandObject, whitelist: bool):
+
     if whitelist:
         if command.args is None:
             await message.answer("Ошибка: укажи свой токен/imei")
@@ -67,15 +60,15 @@ async def extract_data(message: Message, command: CommandObject, whitelist: bool
             await message.answer("Ошибка: укажи свой токен и imei через / ")
             return
 
-        headers = {
-            'Authorization': 'Bearer ' + token,
-            'Content-Type': 'application/json'
-        }
-        body = json.dumps({
-            "deviceId": imei,
-            "serviceId": 12
-        })
-
+        # headers = {
+        #     'Authorization': 'Bearer ' + token,
+        #     'Content-Type': 'application/json'
+        # }
+        # body = json.dumps({
+        #     "deviceId": imei,
+        #     "serviceId": 12
+        # })
+        headers, body = headers_body(imei)
         try:
             response = requests.post(config.external_api_url, headers=headers, data=body)
             data = response.json()
@@ -88,9 +81,32 @@ async def extract_data(message: Message, command: CommandObject, whitelist: bool
         raise CancelHandler()
 
 
+def headers_body(imei: str) -> tuple:
+    headers = {
+        'Authorization': 'Bearer ' + config.api_token,
+        'Content-Type': 'application/json'
+    }
+    body = json.dumps({
+        "deviceId": imei,
+        "serviceId": 12
+    })
+    return headers, body
+
+
+@dp.message(F.text)
+async def check_imei_tg_from_api(text: str):
+    imei = text
+    headers, body = headers_body(imei)
+    try:
+        response = requests.post(config.external_api_url, headers=headers, data=body)
+        data = response.json()
+        await results.put(data)
+    except:
+        await results.put({'error': 'Что-то пошло не так, попробуйте еще раз'})
+
+
 async def run_bot():
     await dp.start_polling(bot)
 
-
-if __name__ == "__main__":
-    asyncio.run(run_bot())
+# if __name__ == "__main__":
+#     asyncio.run(run_bot())

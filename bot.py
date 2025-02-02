@@ -13,7 +13,6 @@ from aiogram.filters import Command, CommandObject
 from aiogram.types import Message, TelegramObject
 from config import config
 
-
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
@@ -48,40 +47,40 @@ results = asyncio.Queue()
 
 
 @dp.message(F.text, Command('imei'))
-async def extract_data(message: Message, command: CommandObject, whitelist: bool):
-
+async def check_imei_from_api(message: Message, command: CommandObject, whitelist: bool) -> None | dict:
+    """
+    Replay to user:
+    check if user in white list
+    and bot answer with information from API
+    :param message: telegram message data
+    :param command: telegram command with slash
+    :param whitelist: white list of usernames
+    :return: none or message from bot
+    """
     if whitelist:
         if command.args is None:
-            await message.answer("Ошибка: укажи свой токен/imei")
+            await message.answer('Ошибка: укажи imei')
             return
-        try:
-            token, imei = command.args.split('/', maxsplit=1)
-        except ValueError:
-            await message.answer("Ошибка: укажи свой токен и imei через / ")
-            return
-
-        # headers = {
-        #     'Authorization': 'Bearer ' + token,
-        #     'Content-Type': 'application/json'
-        # }
-        # body = json.dumps({
-        #     "deviceId": imei,
-        #     "serviceId": 12
-        # })
+        imei = command.args
         headers, body = headers_body(imei)
         try:
             response = requests.post(config.external_api_url, headers=headers, data=body)
             data = response.json()
             answer = json.dumps(data, indent=3, separators=(';', '- '))
             await message.reply(answer)
-        except:
-            await message.reply('Bad data')
+        except ConnectionError:
+            await message.reply('Что-то пошло не так.')
     else:
-        await message.answer("У вас нет доступа к этому боту.")
+        await message.answer('У вас нет доступа к этому боту.')
         raise CancelHandler()
 
 
 def headers_body(imei: str) -> tuple:
+    """
+    Return headers and body in expected format for request.
+    :param imei: imei number
+    :return: tuple
+    """
     headers = {
         'Authorization': 'Bearer ' + config.api_token,
         'Content-Type': 'application/json'
@@ -95,6 +94,10 @@ def headers_body(imei: str) -> tuple:
 
 @dp.message(F.text)
 async def check_imei_tg_from_api(text: str):
+    """
+    Bot answer with information from API
+    :param text: message data
+    """
     imei = text
     headers, body = headers_body(imei)
     try:
@@ -107,6 +110,3 @@ async def check_imei_tg_from_api(text: str):
 
 async def run_bot():
     await dp.start_polling(bot)
-
-# if __name__ == "__main__":
-#     asyncio.run(run_bot())

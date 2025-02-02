@@ -18,7 +18,13 @@ class CheckRequest(BaseModel):
 
 
 @imei_router.post(config.webhook_url, response_class=JSONResponse)
-async def check_imei(request: CheckRequest):
+async def check_imei(request: CheckRequest) -> dict:
+    """
+    Check token with bot token.
+    After check imei using bot.
+    :param request:
+    :return: information about imei
+    """
     if request.token != config.telegram_bot_token:
         return {"status": "error", "message": "Wrong secret token !"}
     else:
